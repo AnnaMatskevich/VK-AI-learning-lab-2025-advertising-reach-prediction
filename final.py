@@ -63,16 +63,13 @@ def calc2(row, hours24, history, users):
     else:
       mean = np.mean(cpms)
       std = max(np.std(cpms), 1e-7)
-    p_win = min(1, st.norm.cdf(np.log(row['cpm']), mean, std) * 0.15)
-    if np.isnan(p_win):
-      print(cpms, mean, std)
+    p_win = st.norm.cdf(np.log(row['cpm']), mean, std) * 0.4
     n_aucions = len(cpms) / STATS_DURATION * row['duration_hours'] * coeff
-    ans += (1 - (1 - p_win)**n_aucions)
-    # if n_aucions < 1:
-    #   continue
-    # print("*****", n_aucions)
-    # ans += n_aucions * (p_win * (1 - p_win)**(n_aucions - 1))
-  return ans / row['audience_size']
+    if n_aucions <= 1:
+      continue
+    ans += (1 - (1 - p_win)**n_aucions) * 1.1 - n_aucions * p_win * (1 - p_win) ** (n_aucions - 1)
+  return ans / row['audience_size'] * 1.15
+
 
 def calc3(row, hours24, history, users):
   ans = 0
@@ -97,12 +94,15 @@ def calc3(row, hours24, history, users):
     else:
       mean = np.mean(cpms)
       std = max(np.std(cpms), 1e-7)
-    p_win = st.norm.cdf(np.log(row['cpm']), mean, std) * 0.08
+    p_win = st.norm.cdf(np.log(row['cpm']), mean, std) * 0.4
     if np.isnan(p_win):
       print(cpms, mean, std)
-    n_aucions = len(cpms) / STATS_DURATION * row['duration_hours'] * coeff * 0.08
-    ans += (1 - (1 - p_win)**n_aucions)
-  return ans / row['audience_size']
+    n_aucions = len(cpms) / STATS_DURATION * row['duration_hours'] * coeff
+    if n_aucions <= 2:
+      continue
+    ans += abs((1 - (1 - p_win)**n_aucions) * 1.1 - n_aucions * p_win * (1 - p_win) ** (n_aucions - 1) - n_aucions * (n_aucions - 1) / 2 * p_win ** 2 * (1 - p_win) ** (n_aucions - 2))
+  return ans / row['audience_size'] * 1.15
+
 
 def main():
     tests_filename = sys.argv[1]
@@ -138,7 +138,7 @@ def main():
     ans['at_least_two'] = val.apply(lambda x: calc2(x, hours24, history, users), axis=1)
     ans['at_least_three'] = val.apply(lambda x: calc3(x, hours24, history, users), axis=1)
 
-    ans[['at_least_one', 'at_least_two', 'at_least_three']].to_csv("validate_answers_true.tsv",
+    ans[['at_least_one', 'at_least_two', 'at_least_three']].to_csv("validate_answers.tsv",
                                                                    sep="\t", index=False, header=True)
 
 
